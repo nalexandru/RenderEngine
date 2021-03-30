@@ -1,6 +1,6 @@
 #pragma once
 
-#include <vulkan/vulkan.h>
+#include <volk.h>
 #include <RenderEngine/RenderEngine.h>
 
 #define RE_NUM_FRAMES	3

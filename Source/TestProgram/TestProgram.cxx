@@ -1,101 +1,65 @@
-#include <Windows.h>
+#include <assert.h>
+
+#if defined(_WIN32)
+#	include <Windows.h>
+#	define GLFW_EXPOSE_NATIVE_WIN32
+#elif defined(__APPLE__)
+#elif defined(__linux__)
+#endif
+
+#include <GLFW/glfw3.h>
+#include <GLFW/glfw3native.h>
 
 #include <RenderEngine/RenderEngine.h>
 
-#define WND_CLASS L"RenderEngineTestProgramWindow"
-
-static LRESULT CALLBACK
-_WndProc(HWND wnd, UINT msg, WPARAM wParam, LPARAM lParam)
+int
+main(int argc, char *argv[])
 {
-	switch (msg) {
-	case WM_DESTROY:
-		PostQuitMessage(0);
-		return TRUE;
-	break;
-	default:
-		return DefWindowProcW(wnd, msg, wParam, lParam);
-	}
-}
+	assert("Failed to initialize GLFW" && glfwInit());
 
-int APIENTRY
-wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prevInstance, _In_ LPWSTR cmdLine, _In_ int showCmd)
-{
-	WNDCLASS wincl{};
-	wincl.style = CS_HREDRAW | CS_VREDRAW;
-	wincl.lpfnWndProc = _WndProc;
-	wincl.hInstance = instance;
-	wincl.hIcon = LoadIcon(instance, IDI_APPLICATION);
-	wincl.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
-	wincl.lpszClassName = WND_CLASS;
-
-	if (!RegisterClass(&wincl)) {
-		MessageBox(HWND_DESKTOP, L"Failed to register class", L"Fatal", MB_ICONERROR | MB_OK);
-		return -1;
-	}
-
-	HWND window = CreateWindowEx(WS_EX_APPWINDOW, WND_CLASS, L"RenderEngine Test Program", WS_OVERLAPPEDWINDOW,
-		CW_USEDEFAULT, 0, 1280, 720, HWND_DESKTOP, NULL, instance, NULL);
-	if (!window) {
-		MessageBox(HWND_DESKTOP, L"Failed to create window", L"Fatal", MB_ICONERROR | MB_OK);
-		return -1;
-	}
-
-	ShowWindow(window, showCmd);
-
-	HMODULE renderEngine = LoadLibrary(L"RenderEngine");
-	if (!renderEngine) {
-		MessageBox(window, L"Failed to load render engine library", L"Fatal", MB_ICONERROR | MB_OK);
-		return -1;
-	}
-
+	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
+	GLFWwindow *wnd = glfwCreateWindow(1280, 720, "RenderEngine Test Program", nullptr, nullptr);
+	
+	void *nativeWindow = nullptr;
 	ReCreateRenderEngineProc createRenderEngine;
+#ifdef _WIN32
+	HMODULE renderEngine = LoadLibrary(L"RenderEngine");
+	assert("Failed to load render engine library" && renderEngine);
+
 	createRenderEngine = (ReCreateRenderEngineProc)GetProcAddress(renderEngine, "Re_CreateRenderEngine");
-	if (!createRenderEngine) {
-		MessageBox(window, L"The library is not a valid render engine", L"Fatal", MB_ICONERROR | MB_OK);
-		return -1;
-	}
+	nativeWindow = glfwGetWin32Window(wnd);
+#else
+#error "Not implemented"
+#endif
+
+	assert("The library is not a valid render engine" && createRenderEngine);
 
 	const struct RenderEngine *re = createRenderEngine();
 
-	if (!re->Init(window)) {
-		MessageBox(window, L"Failed to initialize render engine", L"Fatal", MB_ICONERROR | MB_OK);
-		return -1;
-	}
+	assert("Failed to initialize render engine" && re->Init(nativeWindow));
 
 	struct ReRenderDeviceInfo deviceInfo[2];
 	uint32_t count = _countof(deviceInfo);
 	re->EnumerateDevices(&count, deviceInfo);
 
-	if (!re->InitDevice(&deviceInfo[0])) {
-		MessageBox(window, L"Failed to initialize render device", L"Fatal", MB_ICONERROR | MB_OK);
-		return -1;
+	assert("Failed to initialize render device" && re->InitDevice(&deviceInfo[0]));
 
-	}
-
-	MSG msg;
-	while (1) {
-		bool exit = false;
-		
-		while (PeekMessageW(&msg, NULL, 0, 0, PM_REMOVE)) {
-			if (msg.message == WM_QUIT) {
-				exit = true;
-			} else {
-				TranslateMessage(&msg);
-				DispatchMessageW(&msg);
-			}
-		}
-
-		if (exit)
-			break;
-
+	while (!glfwWindowShouldClose(wnd)) {
 		re->RenderScene(nullptr, nullptr, nullptr);
+	
+		glfwPollEvents();
 	}
 
 	re->TermDevice();
 	re->Term();
 
+#ifdef _WIN32
 	FreeLibrary(renderEngine);
-	UnregisterClass(WND_CLASS, instance);
+#else
+#error "Not implemented"
+#endif
 
-	return msg.wParam;
+	glfwTerminate();
+
+	return 0;
 }

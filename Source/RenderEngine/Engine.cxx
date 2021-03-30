@@ -1,7 +1,10 @@
+#include <assert.h>
+
 #include <vector>
 
 #ifdef _WIN32
 #	define VK_USE_PLATFORM_WIN32_KHR
+#	include <Windows.h>
 #else
 #	error "Platform not supported"
 #endif
@@ -64,6 +67,8 @@ extern "C" EXPORT const struct RenderEngine *Re_CreateRenderEngine(void) { retur
 static bool
 _Init(void *window)
 {
+	assert("Failed to initialize volk" && volkInitialize() == VK_SUCCESS);
+
 	VkApplicationInfo applicationInfo = { VK_STRUCTURE_TYPE_APPLICATION_INFO };
 	applicationInfo.pApplicationName = "RenderEngine";
 	applicationInfo.applicationVersion = VK_MAKE_VERSION(0, 1, 0);
@@ -96,6 +101,8 @@ _Init(void *window)
 
 	if (vkCreateInstance(&instanceInfo, nullptr, &Re_instance) != VK_SUCCESS)
 		return false;
+
+	volkLoadInstance(Re_instance);
 
 #ifdef _WIN32
 	VkWin32SurfaceCreateInfoKHR surfaceInfo{ VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR };

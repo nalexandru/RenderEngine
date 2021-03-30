@@ -141,7 +141,7 @@ Re_InitDevice(const struct ReRenderDeviceInfo *info)
 	if (vkCreateDevice(Re_physicalDevice, &devInfo, nullptr, &Re_device) != VK_SUCCESS)
 		goto error;
 
-//	volkLoadDevice(dev->dev);
+	volkLoadDevice(Re_device);
 
 	vkGetDeviceQueue(Re_device, Re_graphicsQueueFamily, 0, &Re_queue);
 
