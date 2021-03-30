@@ -1,10 +1,15 @@
 #include <vector>
+#include <stdlib.h>
 #include <assert.h>
 
-#ifdef _WIN32
-	#include <Windows.h>
-#else
+#if defined(_WIN32)
+#	include <Windows.h>
+#elif defined(__APPLE__)
 #	error "Platform not supported"
+#else
+#	include <X11/Xlib.h>
+
+extern Display *X11_display;
 #endif
 
 using namespace std;
@@ -219,14 +224,20 @@ _Create(void)
 	vkDeviceWaitIdle(Re_device);
 
 	uint32_t width, height;
-#ifdef _WIN32
+#if defined(_WIN32)
 	RECT rect;
 	GetClientRect((HWND)Re_window, &rect);
 
 	width = rect.right - rect.left;
 	height = rect.bottom - rect.top;
-#else
+#elif defined(__APPLE__)
 #	error "Platform not supported"
+#else
+	int x, y;
+	uint32_t border, depth;
+	Window root;
+	XGetGeometry(X11_display, (Window)Re_window, &root, &x, &y, &width, &height,
+				&border, &depth);
 #endif
 
 	VkSwapchainCreateInfoKHR createInfo{ VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR };

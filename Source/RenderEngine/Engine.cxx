@@ -1,12 +1,15 @@
+#include <stdio.h>
+#include <stdlib.h>
 #include <assert.h>
 
 #include <vector>
 
 #ifdef _WIN32
-#	define VK_USE_PLATFORM_WIN32_KHR
 #	include <Windows.h>
 #else
-#	error "Platform not supported"
+#	include <X11/Xlib.h>
+
+Display *X11_display;
 #endif
 
 #include "RenderEngine_Internal.h"
@@ -90,10 +93,11 @@ _Init(void *window)
 	instExtensions.push_back(VK_KHR_SURFACE_EXTENSION_NAME);
 	instExtensions.push_back(VK_KHR_GET_SURFACE_CAPABILITIES_2_EXTENSION_NAME);
 
-#ifdef _WIN32
+#if defined(_WIN32)
 	instExtensions.push_back(VK_KHR_WIN32_SURFACE_EXTENSION_NAME);
+#elif defined(__APPLE__)
 #else
-#	error "Platform not supported"
+	instExtensions.push_back(VK_KHR_XLIB_SURFACE_EXTENSION_NAME);
 #endif
 
 	instanceInfo.enabledExtensionCount = (uint32_t)instExtensions.size();
@@ -104,15 +108,23 @@ _Init(void *window)
 
 	volkLoadInstance(Re_instance);
 
-#ifdef _WIN32
+#if defined(_WIN32)
 	VkWin32SurfaceCreateInfoKHR surfaceInfo{ VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR };
 	surfaceInfo.hinstance = GetModuleHandle(NULL);
 	surfaceInfo.hwnd = (HWND)window;
 
 	if (vkCreateWin32SurfaceKHR(Re_instance, &surfaceInfo, nullptr, &Re_swapchain.surface) != VK_SUCCESS)
 		return false;
+#elif defined(__APPLE__)
 #else
-#	error "Platform not supported"
+	X11_display = XOpenDisplay(NULL);
+	
+    VkXlibSurfaceCreateInfoKHR surfaceInfo{ VK_STRUCTURE_TYPE_XLIB_SURFACE_CREATE_INFO_KHR };
+    surfaceInfo.dpy = X11_display;
+	surfaceInfo.window = (Window)window;
+    
+    if (vkCreateXlibSurfaceKHR(Re_instance, &surfaceInfo, nullptr, &Re_swapchain.surface) != VK_SUCCESS)
+        return false;
 #endif
 
 	Re_window = window;
@@ -180,10 +192,11 @@ _EnumerateDevices(uint32_t *count, struct ReRenderDeviceInfo *info)
 		uint32_t familyCount;
 		vkGetPhysicalDeviceQueueFamilyProperties(dev[i], &familyCount, NULL);
 		for (uint32_t j = 0; j < familyCount; ++j)
-#ifdef _WIN32
+#if defined(_WIN32)
 			if (vkGetPhysicalDeviceWin32PresentationSupportKHR(dev[i], j))
+#elif defined(__APPLE__)
 #else
-#	error "Platform not supported"
+			if (1)
 #endif
 				present = true;
 
@@ -239,12 +252,12 @@ _EnumerateDevices(uint32_t *count, struct ReRenderDeviceInfo *info)
 static bool
 _LoadGraphModule(const char *path)
 {
-	static void *graphModule = nullptr;
+	static HMODULE graphModule = nullptr;
 
 	if (graphModule)
-		FreeLibrary((HMODULE)graphModule);
+		FreeLibrary(graphModule);
 
-	graphModule = (void *)LoadLibraryA(path);
+	graphModule = LoadLibraryA(path);
 	if (!graphModule)
 		return false;
 
@@ -252,7 +265,23 @@ _LoadGraphModule(const char *path)
 
 	return true;
 }
-
 #else
-#	error "Platform not supported"
+#include <dlfcn.h>
+
+static bool
+_LoadGraphModule(const char *path)
+{
+	static void *graphModule = nullptr;
+	
+	if (graphModule)
+		dlclose(graphModule);
+	
+	graphModule = dlopen(path, RTLD_NOW);
+	if (!graphModule)
+		return false;
+	
+	// initialize graph
+	
+	return true;
+}
 #endif

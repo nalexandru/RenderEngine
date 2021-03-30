@@ -5,13 +5,19 @@
 #	define GLFW_EXPOSE_NATIVE_WIN32
 #elif defined(__APPLE__)
 #elif defined(__linux__)
+#	include <dlfcn.h>
+#	define GLFW_EXPOSE_NATIVE_X11
+#endif
+
+#ifndef _countof
+#	define _countof(x) (sizeof(x)/sizeof(x[0]))
 #endif
 
 #include <GLFW/glfw3.h>
 #include <GLFW/glfw3native.h>
 
 #include <RenderEngine/RenderEngine.h>
-
+#include <stdio.h>
 int
 main(int argc, char *argv[])
 {
@@ -22,14 +28,18 @@ main(int argc, char *argv[])
 	
 	void *nativeWindow = nullptr;
 	ReCreateRenderEngineProc createRenderEngine;
-#ifdef _WIN32
+#if defined(_WIN32)
 	HMODULE renderEngine = LoadLibrary(L"RenderEngine");
 	assert("Failed to load render engine library" && renderEngine);
 
 	createRenderEngine = (ReCreateRenderEngineProc)GetProcAddress(renderEngine, "Re_CreateRenderEngine");
 	nativeWindow = glfwGetWin32Window(wnd);
 #else
-#error "Not implemented"
+	void *renderEngine = dlopen("libRenderEngine.so", RTLD_NOW);
+	assert("Failed to load render engine library" && renderEngine);
+	
+	createRenderEngine = (ReCreateRenderEngineProc)dlsym(renderEngine, "Re_CreateRenderEngine");
+	nativeWindow = (void *)glfwGetX11Window(wnd);
 #endif
 
 	assert("The library is not a valid render engine" && createRenderEngine);
@@ -56,7 +66,7 @@ main(int argc, char *argv[])
 #ifdef _WIN32
 	FreeLibrary(renderEngine);
 #else
-#error "Not implemented"
+	dlclose(renderEngine);
 #endif
 
 	glfwTerminate();
