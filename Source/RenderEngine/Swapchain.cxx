@@ -263,6 +263,10 @@ _Create(void)
 	uint32_t count{ 0 };
 	vkGetSwapchainImagesKHR(Re_device, Re_swapchain.sw, &count, NULL);
 
+	if (Re_swapchain.imageCount && Re_swapchain.views)
+		for (uint32_t i = 0; i < Re_swapchain.imageCount; ++i)
+			vkDestroyImageView(Re_device, Re_swapchain.views[i], nullptr);
+
 	if (Re_swapchain.imageCount != count || !Re_swapchain.images || !Re_swapchain.views) {
 		void *ptr;
 
