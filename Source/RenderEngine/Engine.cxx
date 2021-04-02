@@ -16,17 +16,17 @@ Display *X11_display;
 
 using namespace std;
 
-void *Re_window;
-VkInstance Re_instance;
-TLS struct RenderContext Re_context;
-mutex Re_submitMutex;
+void *Re_window{ nullptr };
+VkInstance Re_instance{ VK_NULL_HANDLE };
+TLS struct RenderContext Re_context{};
+mutex Re_submitMutex{};
 
 static bool _Init(void *window);
 static void _Term(void);
 static bool _EnumerateDevices(uint32_t *count, struct ReRenderDeviceInfo *info);
 static bool _LoadGraphModule(const char *path);
 
-static struct RenderEngine _re =
+static struct RenderEngine _re
 {
 	Re_RenderScene,
 
@@ -39,6 +39,10 @@ static struct RenderEngine _re =
 
 	Re_CreateModel,
 	Re_DestroyModel,
+
+	Re_CreateBuffer,
+	Re_UploadBuffer,
+	Re_DestroyBuffer,
 
 	Re_CreateTexture,
 	Re_UploadTexture,
@@ -150,7 +154,7 @@ Re_InitThread(void)
 	assert(vkCreateCommandPool(Re_device, &poolInfo, nullptr, &Re_context.commandPool) == VK_SUCCESS);
 	
 	poolInfo.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT;
-	assert(vkCreateCommandPool(Re_device, &poolInfo, nullptr, &Re_context.oneShotCommandPool) == VK_SUCCESS);
+	assert(vkCreateCommandPool(Re_device, &poolInfo, nullptr, &Re_context.transientCommandPool) == VK_SUCCESS);
 
 	VkCommandBufferAllocateInfo allocateInfo{ VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO };
 	allocateInfo.commandPool = Re_context.commandPool;
@@ -163,7 +167,7 @@ void
 Re_TermThread(void)
 {
 	vkFreeCommandBuffers(Re_device, Re_context.commandPool, RE_NUM_FRAMES, Re_context.commandBuffers);
-	vkDestroyCommandPool(Re_device, Re_context.oneShotCommandPool, nullptr);
+	vkDestroyCommandPool(Re_device, Re_context.transientCommandPool, nullptr);
 	vkDestroyCommandPool(Re_device, Re_context.commandPool, nullptr);
 }
 

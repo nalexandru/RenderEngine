@@ -6,7 +6,7 @@
 struct ReTexture *
 Re_CreateTexture(const struct ReTextureCreateInfo *tci)
 {
-	struct ReTexture *tex = (struct ReTexture *)calloc(1, sizeof(*tex));
+	struct ReTexture *tex{ (struct ReTexture *)calloc(1, sizeof(*tex)) };
 	assert("Failed to allocate memory" && tex);
 
 	tex->width = tci->width;
@@ -19,7 +19,7 @@ Re_CreateTexture(const struct ReTextureCreateInfo *tci)
 	imageInfo.arrayLayers = tci->arrayLayers;
 	imageInfo.samples = (VkSampleCountFlagBits)tci->samples;
 	imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
-	imageInfo.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+	imageInfo.usage = (VkImageUsageFlagBits)tci->usage;
 
 	VkImageViewCreateInfo viewInfo{ VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO };
 	viewInfo.components = { VK_COMPONENT_SWIZZLE_R, VK_COMPONENT_SWIZZLE_G, VK_COMPONENT_SWIZZLE_B, VK_COMPONENT_SWIZZLE_A };
@@ -44,11 +44,23 @@ Re_CreateTexture(const struct ReTextureCreateInfo *tci)
 	switch (tci->format) {
 	case RE_TF_R8G8B8A8_UNORM: imageInfo.format = VK_FORMAT_R8G8B8A8_UNORM; break;
 	case RE_TF_R8G8B8A8_UNORM_SRGB: imageInfo.format = VK_FORMAT_R8G8B8A8_SRGB; break;
+	case RE_TF_R16G16B16A16_SFLOAT: imageInfo.format = VK_FORMAT_R16G16B16A16_SFLOAT; break;
+	case RE_TF_R32G32B32A32_SFLOAT: imageInfo.format = VK_FORMAT_R32G32B32A32_SFLOAT; break;
+	case RE_TF_D32_SFLOAT: imageInfo.format = VK_FORMAT_D32_SFLOAT; break;
+	case RE_TF_BC7_UNORM: imageInfo.format = VK_FORMAT_BC7_UNORM_BLOCK; break;
+	case RE_TF_BC7_SRGB: imageInfo.format = VK_FORMAT_BC7_SRGB_BLOCK; break;
 	}
 	viewInfo.format = imageInfo.format;
 
 	VmaAllocationCreateInfo allocInfo{};
 	allocInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
+
+	switch (tci->memoryType) {
+	case RE_MT_GPU_LOCAL: allocInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY; break;
+	case RE_MT_CPU_COHERENT: allocInfo.usage = VMA_MEMORY_USAGE_CPU_ONLY; break;
+	case RE_MT_CPU_VISIBLE: allocInfo.usage = VMA_MEMORY_USAGE_GPU_TO_CPU; break;
+	}
+
 
 	assert("Failed to create image" &&
 		vmaCreateImage(Re_allocator, &imageInfo, &allocInfo, &tex->image, &tex->memory, NULL) == VK_SUCCESS);
@@ -61,37 +73,28 @@ Re_CreateTexture(const struct ReTextureCreateInfo *tci)
 }
 
 void
-Re_UploadTexture(struct ReTexture *tex, const void *data, uint64_t dataSize)
+Re_UploadTexture(struct ReTexture *tex, const void *data, uint64_t size)
 {
-	VkBufferCreateInfo buffInfo{ VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO };
-	buffInfo.size = dataSize;
-	buffInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
-	
-	VkBuffer buff;
-	VmaAllocation buffMemory;
-	VmaAllocationInfo info{};
-	VmaAllocationCreateInfo allocInfo{};
-	allocInfo.usage = VMA_MEMORY_USAGE_CPU_ONLY;
-	assert("Failed to create buffer" &&
-		vmaCreateBuffer(Re_allocator, &buffInfo, &allocInfo, &buff, &buffMemory, &info) == VK_SUCCESS);
-	assert(info.pMappedData);
+	struct ReBufferCreateInfo stagingInfo{};
+	stagingInfo.usage = (ReBufferUsage)(RE_BU_TRANSFER_SRC | RE_BU_TRANSFER_DST);
+	stagingInfo.memoryType = RE_MT_CPU_COHERENT;
+	stagingInfo.size = size;
+	struct ReBuffer *staging{ Re_CreateBuffer(&stagingInfo) };
+	assert(staging);
 
-	memcpy(info.pMappedData, data, dataSize);
-
-	VkCommandBuffer cmdBuff = ReH_OneShotCommandBuffer();
+	VkCommandBuffer cmdBuff{ ReH_OneShotCommandBuffer() };
 
 	Re_TransitionImageLayout(cmdBuff, tex->image, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
 	VkBufferImageCopy region{};
 	region.imageSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 };
 	region.imageExtent = { tex->width, tex->height, tex->depth };
 
-	vkCmdCopyBufferToImage(cmdBuff, buff, tex->image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+	vkCmdCopyBufferToImage(cmdBuff, staging->buff, tex->image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
 	Re_TransitionImageLayout(cmdBuff, tex->image, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 
 	ReH_ExecuteCommandBuffer(cmdBuff);
 
-	vkDestroyBuffer(Re_device, buff, nullptr);
-	vmaFreeMemory(Re_allocator, buffMemory);
+	Re_DestroyBuffer(staging);
 
 	tex->layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 }

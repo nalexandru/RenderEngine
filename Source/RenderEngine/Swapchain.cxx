@@ -32,7 +32,7 @@ Re_InitSwapchain(void)
 	if (Re_swapchain.surfaceCapabilities.maxImageCount && Re_swapchain.imageCount > Re_swapchain.surfaceCapabilities.maxImageCount)
 		Re_swapchain.imageCount = Re_swapchain.surfaceCapabilities.maxImageCount;
 
-	uint32_t count = 0;
+	uint32_t count{ 0 };
 	vkGetPhysicalDeviceSurfaceFormatsKHR(Re_physicalDevice, Re_swapchain.surface, &count, NULL);
 
 	vector<VkSurfaceFormatKHR> formats{};
@@ -115,7 +115,7 @@ uint32_t
 Re_AcquireNextImage(void)
 {
 	uint32_t imageId;
-	VkResult rc = vkAcquireNextImageKHR(Re_device, Re_swapchain.sw, UINT64_MAX, Re_swapchain.frameStart, VK_NULL_HANDLE, &imageId);
+	VkResult rc{ vkAcquireNextImageKHR(Re_device, Re_swapchain.sw, UINT64_MAX, Re_swapchain.frameStart, VK_NULL_HANDLE, &imageId) };
 	if (rc != VK_SUCCESS) {
 		switch (rc) {
 		case VK_SUBOPTIMAL_KHR:
@@ -200,7 +200,7 @@ Re_Present(uint32_t imageId)
 	pi.pSwapchains = &Re_swapchain.sw;
 	pi.pImageIndices = &imageId;
 
-	VkResult rc = vkQueuePresentKHR(Re_queue, &pi);
+	VkResult rc{ vkQueuePresentKHR(Re_queue, &pi) };
 	switch (rc) {
 	case VK_SUCCESS: return true;
 	case VK_SUBOPTIMAL_KHR:
@@ -223,9 +223,9 @@ _Create(void)
 {
 	vkDeviceWaitIdle(Re_device);
 
-	uint32_t width, height;
+	uint32_t width{ 0 }, height{ 0 };
 #if defined(_WIN32)
-	RECT rect;
+	RECT rect{};
 	GetClientRect((HWND)Re_window, &rect);
 
 	width = rect.right - rect.left;
@@ -260,7 +260,7 @@ _Create(void)
 
 	Re_swapchain.sw = newSwapchain;
 
-	uint32_t count;
+	uint32_t count{ 0 };
 	vkGetSwapchainImagesKHR(Re_device, Re_swapchain.sw, &count, NULL);
 
 	if (Re_swapchain.imageCount != count || !Re_swapchain.images || !Re_swapchain.views) {

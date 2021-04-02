@@ -7,8 +7,8 @@ using namespace ImGui;
 void
 GE_Draw(void)
 {
-	static float f = 0.0f;
-	static int counter = 0;
+	static float f{ 0.0f };
+	static int counter{ 0 };
 
 	Begin("Blyat");
 	Text("Fuck seeples");

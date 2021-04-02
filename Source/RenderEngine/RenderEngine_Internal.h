@@ -15,6 +15,13 @@
 #	define TLS __thread
 #endif
 
+struct ReBuffer
+{
+	VkBuffer buff;
+	void *ptr;
+	VmaAllocation memory;
+};
+
 struct ReTexture
 {
 	VkImageView view;
@@ -26,7 +33,7 @@ struct ReTexture
 
 struct RenderContext
 {
-	VkCommandPool commandPool, oneShotCommandPool;
+	VkCommandPool commandPool, transientCommandPool;
 	VkCommandBuffer commandBuffers[RE_NUM_FRAMES];
 };
 
@@ -79,9 +86,13 @@ void Re_DestroyScene(struct ReScene *s);
 struct ReModel *Re_CreateModel(const struct ReModelCreateInfo *mci);
 void Re_DestroyModel(struct ReModel *m);
 
+struct ReBuffer *Re_CreateBuffer(const struct ReBufferCreateInfo *bci);
+void Re_UploadBuffer(struct ReBuffer *buff, uint64_t offset, const void *data, uint64_t size);
+void Re_DestroyBuffer(struct ReBuffer *buff);
+
 struct ReTexture *Re_CreateTexture(const struct ReTextureCreateInfo *tci);
-void Re_UploadTexture(struct ReTexture *tex, const void *data, uint64_t dataSize);
-void Re_DestroyTexture(struct ReTexture *t);
+void Re_UploadTexture(struct ReTexture *tex, const void *data, uint64_t size);
+void Re_DestroyTexture(struct ReTexture *tex);
 void Re_TransitionImageLayout(VkCommandBuffer cmdBuffer, VkImage image, VkImageAspectFlags aspect, VkImageLayout oldLayout, VkImageLayout newLayout);
 
 struct ReMaterial *Re_CreateMaterial(const struct ReMaterialCreateInfo *mci);
@@ -96,7 +107,7 @@ ReH_OneShotCommandBuffer(void)
 	VkCommandBuffer cmdBuff;
 
 	VkCommandBufferAllocateInfo allocInfo{ VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO };
-	allocInfo.commandPool = Re_context.oneShotCommandPool;
+	allocInfo.commandPool = Re_context.transientCommandPool;
 	allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
 	allocInfo.commandBufferCount = 1;
 	assert("Failed to allocate command buffer" && vkAllocateCommandBuffers(Re_device, &allocInfo, &cmdBuff) == VK_SUCCESS);
@@ -129,5 +140,5 @@ ReH_ExecuteCommandBuffer(VkCommandBuffer cmdBuff)
 	vkWaitForFences(Re_device, 1, &fence, VK_TRUE, UINT64_MAX);
 	vkDestroyFence(Re_device, fence, nullptr);
 
-	vkFreeCommandBuffers(Re_device, Re_context.oneShotCommandPool, 1, &cmdBuff);
+	vkFreeCommandBuffers(Re_device, Re_context.transientCommandPool, 1, &cmdBuff);
 }

@@ -61,14 +61,14 @@ Re_InitDevice(const struct ReRenderDeviceInfo *info)
 	if (info->features.bcTextureCompression)
 		features.features.textureCompressionBC = VK_TRUE;
 
-	uint32_t count;
+	uint32_t count{ 0 };
 	vkGetPhysicalDeviceQueueFamilyProperties(Re_physicalDevice, &count, NULL);
 
 	vector<VkQueueFamilyProperties> queueProperties{};
 	queueProperties.resize(count);
 	vkGetPhysicalDeviceQueueFamilyProperties(Re_physicalDevice, &count, queueProperties.data());
 
-	VkBool32 present;
+	VkBool32 present{ VK_FALSE };
 	for (uint32_t i = 0; i < count; ++i) {
 		if (queueProperties[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) {
 			vkGetPhysicalDeviceSurfaceSupportKHR(Re_physicalDevice, i, Re_swapchain.surface, &present);

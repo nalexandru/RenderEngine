@@ -1,6 +1,6 @@
 #include "RenderEngine_Internal.h"
 
-uint32_t Re_frameId = 0;
+uint32_t Re_frameId{ 0 };
 
 void
 Re_RenderScene(const struct ReScene *scene, const struct ReCameraInfo *ci, const struct ReRenderSettings *opt)
@@ -9,14 +9,14 @@ Re_RenderScene(const struct ReScene *scene, const struct ReCameraInfo *ci, const
 	(void)ci;
 	(void)opt;
 
-	uint32_t imageId = Re_AcquireNextImage();
+	uint32_t imageId{ Re_AcquireNextImage() };
 	if (imageId == UINT32_MAX)
 		return;
 
 	vkWaitForFences(Re_device, 1, &Re_swapchain.fences[Re_frameId], VK_TRUE, UINT64_MAX);
 	vkResetFences(Re_device, 1, &Re_swapchain.fences[Re_frameId]);
 
-	VkCommandBuffer cmdBuffer = Re_context.commandBuffers[Re_frameId];
+	VkCommandBuffer cmdBuffer{ Re_context.commandBuffers[Re_frameId] };
 
 	vkResetCommandBuffer(cmdBuffer, 0);
 
@@ -35,7 +35,7 @@ Re_RenderScene(const struct ReScene *scene, const struct ReCameraInfo *ci, const
 
 	vkEndCommandBuffer(cmdBuffer);
 
-	VkPipelineStageFlags waitStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+	VkPipelineStageFlags waitStage{ VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT };
 	VkSubmitInfo submitInfo{ VK_STRUCTURE_TYPE_SUBMIT_INFO };
 	submitInfo.waitSemaphoreCount = 1;
 	submitInfo.pWaitSemaphores = &Re_swapchain.frameStart;
