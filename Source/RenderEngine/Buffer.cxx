@@ -18,8 +18,8 @@ Re_CreateBuffer(const struct ReBufferCreateInfo *bci)
 
 	switch (bci->memoryType) {
 	case RE_MT_GPU_LOCAL: allocInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY; break;
-	case RE_MT_CPU_COHERENT: allocInfo.usage = VMA_MEMORY_USAGE_CPU_ONLY; break;
-	case RE_MT_CPU_VISIBLE: allocInfo.usage = VMA_MEMORY_USAGE_GPU_TO_CPU; break;
+	case RE_MT_CPU_COHERENT: allocInfo.usage = VMA_MEMORY_USAGE_CPU_ONLY; allocInfo.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT; break;
+	case RE_MT_CPU_VISIBLE: allocInfo.usage = VMA_MEMORY_USAGE_GPU_TO_CPU; allocInfo.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT; break;
 	}
 
 	VmaAllocationInfo info{};
@@ -35,7 +35,7 @@ void
 Re_UploadBuffer(struct ReBuffer *buff, uint64_t offset, const void *data, uint64_t size)
 {
 	if (buff->ptr) {
-		memcpy((uint8_t *)buff->buff + offset, data, size);
+		memcpy((uint8_t *)buff->ptr + offset, data, size);
 	} else {
 		struct ReBuffer *stagingBuffer{ nullptr };
 		VkCommandBuffer cmdBuff{ ReH_OneShotCommandBuffer() };

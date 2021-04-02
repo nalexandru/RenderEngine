@@ -193,5 +193,7 @@ Re_TermDevice(void)
 	Re_TermSwapchain();
 	Re_TermThread();
 	
+	vmaDestroyAllocator(Re_allocator);
+
 	vkDestroyDevice(Re_device, nullptr);
 }

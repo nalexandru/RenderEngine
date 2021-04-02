@@ -18,6 +18,14 @@
 
 #include <RenderEngine/RenderEngine.h>
 
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb_image.h"
+
+// Resources
+#include "lenna.h"
+
+static inline struct ReTexture *_loadTexture(const struct RenderEngine *);
+
 int
 main(int argc, char *argv[])
 {
@@ -54,11 +62,15 @@ main(int argc, char *argv[])
 
 	assert("Failed to initialize render device" && re->InitDevice(&deviceInfo[0]));
 
+	ReTexture *tex{ _loadTexture(re) };
+
 	while (!glfwWindowShouldClose(wnd)) {
 		re->RenderScene(nullptr, nullptr, nullptr);
 	
 		glfwPollEvents();
 	}
+
+	re->DestroyTexture(tex);
 
 	re->TermDevice();
 	re->Term();
@@ -73,3 +85,31 @@ main(int argc, char *argv[])
 
 	return 0;
 }
+
+static inline struct ReTexture *
+_loadTexture(const struct RenderEngine *re)
+{
+	struct ReTextureCreateInfo tci{};
+	tci.type = RE_TEXTURE_2D;
+	tci.usage = (ReTextureUsage)(RE_TU_TRANSFER_DST | RE_TU_SAMPLED);
+	tci.format = RE_TF_R8G8B8A8_UNORM;
+	tci.memoryType = RE_MT_GPU_LOCAL;
+	tci.depth = 1;
+	tci.mipLevels = 1;
+	tci.arrayLayers = 1;
+	tci.samples = 1;
+
+	int x, y, c;
+	uint8_t *data{ stbi_load_from_memory(lenna_png, sizeof(lenna_png), &x, &y, &c, 4) };
+
+	tci.width = x;
+	tci.height = y;
+
+	struct ReTexture *tex{ re->CreateTexture(&tci) };
+	assert(tex);
+
+	re->UploadTexture(tex, data, x * y * 4);
+
+	return tex;
+}
+

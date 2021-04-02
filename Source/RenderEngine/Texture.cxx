@@ -82,6 +82,8 @@ Re_UploadTexture(struct ReTexture *tex, const void *data, uint64_t size)
 	struct ReBuffer *staging{ Re_CreateBuffer(&stagingInfo) };
 	assert(staging);
 
+	Re_UploadBuffer(staging, 0, data, size);
+
 	VkCommandBuffer cmdBuff{ ReH_OneShotCommandBuffer() };
 
 	Re_TransitionImageLayout(cmdBuff, tex->image, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
