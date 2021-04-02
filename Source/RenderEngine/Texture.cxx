@@ -1,14 +1,107 @@
+#include <assert.h>
+#include <stdlib.h>
+
 #include "RenderEngine_Internal.h"
 
 struct ReTexture *
 Re_CreateTexture(const struct ReTextureCreateInfo *tci)
 {
-	return nullptr;
+	struct ReTexture *tex = (struct ReTexture *)calloc(1, sizeof(*tex));
+	assert("Failed to allocate memory" && tex);
+
+	tex->width = tci->width;
+	tex->height = tci->height;
+	tex->depth = tci->depth;
+
+	VkImageCreateInfo imageInfo{ VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO };
+	imageInfo.extent = { tci->width, tci->height, tci->depth };
+	imageInfo.mipLevels = tci->mipLevels;
+	imageInfo.arrayLayers = tci->arrayLayers;
+	imageInfo.samples = (VkSampleCountFlagBits)tci->samples;
+	imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+	imageInfo.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+
+	VkImageViewCreateInfo viewInfo{ VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO };
+	viewInfo.components = { VK_COMPONENT_SWIZZLE_R, VK_COMPONENT_SWIZZLE_G, VK_COMPONENT_SWIZZLE_B, VK_COMPONENT_SWIZZLE_A };
+	viewInfo.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, tci->mipLevels, 0, tci->arrayLayers };
+
+	switch (tci->type) {
+	case RE_TEXTURE_2D:
+		imageInfo.imageType = VK_IMAGE_TYPE_2D;
+		viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+	break;
+	case RE_TEXTURE_3D:
+		imageInfo.imageType = VK_IMAGE_TYPE_3D;
+		viewInfo.viewType = VK_IMAGE_VIEW_TYPE_3D;
+	break;
+	case RE_TEXTURE_CUBE:
+		imageInfo.imageType = VK_IMAGE_TYPE_2D;
+		imageInfo.flags = VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT;
+		viewInfo.viewType = VK_IMAGE_VIEW_TYPE_CUBE;
+	break;
+	}
+
+	switch (tci->format) {
+	case RE_TF_R8G8B8A8_UNORM: imageInfo.format = VK_FORMAT_R8G8B8A8_UNORM; break;
+	case RE_TF_R8G8B8A8_UNORM_SRGB: imageInfo.format = VK_FORMAT_R8G8B8A8_SRGB; break;
+	}
+	viewInfo.format = imageInfo.format;
+
+	VmaAllocationCreateInfo allocInfo{};
+	allocInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
+
+	assert("Failed to create image" &&
+		vmaCreateImage(Re_allocator, &imageInfo, &allocInfo, &tex->image, &tex->memory, NULL) == VK_SUCCESS);
+
+	viewInfo.image = tex->image;
+	assert("Failed to create image view" &&
+		vkCreateImageView(Re_device, &viewInfo, nullptr, &tex->view) == VK_SUCCESS);
+
+	return tex;
 }
 
 void
-Re_DestroyTexture(struct ReTexture *t)
+Re_UploadTexture(struct ReTexture *tex, const void *data, uint64_t dataSize)
 {
+	VkBufferCreateInfo buffInfo{ VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO };
+	buffInfo.size = dataSize;
+	buffInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+	
+	VkBuffer buff;
+	VmaAllocation buffMemory;
+	VmaAllocationInfo info{};
+	VmaAllocationCreateInfo allocInfo{};
+	allocInfo.usage = VMA_MEMORY_USAGE_CPU_ONLY;
+	assert("Failed to create buffer" &&
+		vmaCreateBuffer(Re_allocator, &buffInfo, &allocInfo, &buff, &buffMemory, &info) == VK_SUCCESS);
+	assert(info.pMappedData);
+
+	memcpy(info.pMappedData, data, dataSize);
+
+	VkCommandBuffer cmdBuff = ReH_OneShotCommandBuffer();
+
+	Re_TransitionImageLayout(cmdBuff, tex->image, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+	VkBufferImageCopy region{};
+	region.imageSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 };
+	region.imageExtent = { tex->width, tex->height, tex->depth };
+
+	vkCmdCopyBufferToImage(cmdBuff, buff, tex->image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+	Re_TransitionImageLayout(cmdBuff, tex->image, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+
+	ReH_ExecuteCommandBuffer(cmdBuff);
+
+	vkDestroyBuffer(Re_device, buff, nullptr);
+	vmaFreeMemory(Re_allocator, buffMemory);
+
+	tex->layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+}
+
+void
+Re_DestroyTexture(struct ReTexture *tex)
+{
+	vkDestroyImageView(Re_device, tex->view, nullptr);
+	vkDestroyImage(Re_device, tex->image, nullptr);
+	vmaFreeMemory(Re_allocator, tex->memory);
 }
 
 void

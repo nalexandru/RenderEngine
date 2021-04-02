@@ -7,7 +7,7 @@ struct ReTextureCreateInfo
 {
 	enum ReTextureType type;
 	enum ReTextureFormat format;	
-	uint32_t width, height, depth;
+	uint32_t width, height, depth, mipLevels, arrayLayers, samples;
 };
 
 

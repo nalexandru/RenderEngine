@@ -1,10 +1,12 @@
 #include <vector>
 
+#define VMA_IMPLEMENTATION
 #include "RenderEngine_Internal.h"
 
 using namespace std;
 
 VkDevice Re_device;
+VmaAllocator Re_allocator;
 VkPhysicalDevice Re_physicalDevice;
 VkPhysicalDeviceProperties Re_physicalDeviceProperties;
 VkPhysicalDeviceMemoryProperties Re_physicalDeviceMemoryProperties;
@@ -139,18 +141,48 @@ Re_InitDevice(const struct ReRenderDeviceInfo *info)
 	devInfo.ppEnabledExtensionNames = devExtensions.data();
 
 	if (vkCreateDevice(Re_physicalDevice, &devInfo, nullptr, &Re_device) != VK_SUCCESS)
-		goto error;
+		return false;
 
 	volkLoadDevice(Re_device);
 
 	vkGetDeviceQueue(Re_device, Re_graphicsQueueFamily, 0, &Re_queue);
 
+	VmaVulkanFunctions vmaFuncs{};
+	vmaFuncs.vkGetPhysicalDeviceProperties = vkGetPhysicalDeviceProperties;
+	vmaFuncs.vkGetPhysicalDeviceMemoryProperties = vkGetPhysicalDeviceMemoryProperties;
+	vmaFuncs.vkAllocateMemory = vkAllocateMemory;
+	vmaFuncs.vkFreeMemory = vkFreeMemory;
+	vmaFuncs.vkMapMemory = vkMapMemory;
+	vmaFuncs.vkUnmapMemory = vkUnmapMemory;
+	vmaFuncs.vkFlushMappedMemoryRanges = vkFlushMappedMemoryRanges;
+	vmaFuncs.vkInvalidateMappedMemoryRanges = vkInvalidateMappedMemoryRanges;
+	vmaFuncs.vkBindBufferMemory = vkBindBufferMemory;
+	vmaFuncs.vkBindImageMemory = vkBindImageMemory;
+	vmaFuncs.vkGetBufferMemoryRequirements = vkGetBufferMemoryRequirements;
+	vmaFuncs.vkGetImageMemoryRequirements = vkGetImageMemoryRequirements;
+	vmaFuncs.vkCreateBuffer = vkCreateBuffer;
+	vmaFuncs.vkDestroyBuffer = vkDestroyBuffer;
+	vmaFuncs.vkCreateImage = vkCreateImage;
+	vmaFuncs.vkDestroyImage = vkDestroyImage;
+	vmaFuncs.vkCmdCopyBuffer = vkCmdCopyBuffer;
+	vmaFuncs.vkGetBufferMemoryRequirements2KHR = vkGetBufferMemoryRequirements2KHR;
+	vmaFuncs.vkGetImageMemoryRequirements2KHR = vkGetImageMemoryRequirements2KHR;
+	vmaFuncs.vkBindBufferMemory2KHR = vkBindBufferMemory2KHR;
+	vmaFuncs.vkBindImageMemory2KHR = vkBindImageMemory2KHR;
+	vmaFuncs.vkGetPhysicalDeviceMemoryProperties2KHR = vkGetPhysicalDeviceMemoryProperties2KHR;
+
+	VmaAllocatorCreateInfo allocatorInfo{};
+	allocatorInfo.vulkanApiVersion = VK_API_VERSION_1_2;
+	allocatorInfo.physicalDevice = Re_physicalDevice;
+	allocatorInfo.device = Re_device;
+	allocatorInfo.instance = Re_instance;
+	allocatorInfo.pVulkanFunctions = &vmaFuncs;
+
+	assert("Failed to create allocator" && vmaCreateAllocator(&allocatorInfo, &Re_allocator) == VK_SUCCESS);
+
 	Re_InitThread();
 
 	return Re_InitSwapchain();
-
-error:
-	return false;
 }
 
 void

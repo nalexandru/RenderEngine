@@ -4,7 +4,7 @@
 #include <RenderEngine/Types.h>
 
 #define RE_RENDER_ENGINE_ID		0xB15B00B5
-#define RE_RENDER_ENGINE_API	1
+#define RE_RENDER_ENGINE_API	2
 
 struct ReRenderSettings
 {
@@ -50,7 +50,8 @@ struct RenderEngine
 	void (*DestroyModel)(struct ReModel *m);
 
 	struct ReTexture *(*CreateTexture)(const struct ReTextureCreateInfo *tci);
-	void (*DestroyTexture)(struct ReTexture *t);
+	void (*UploadTexture)(struct ReTexture *tex, const void *data, uint64_t dataSize);
+	void (*DestroyTexture)(struct ReTexture *tex);
 
 	struct ReMaterial *(*CreateMaterial)(const struct ReMaterialCreateInfo *mci);
 	void (*DestroyMaterial)(struct ReMaterial *m);

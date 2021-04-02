@@ -18,7 +18,8 @@ using namespace std;
 
 void *Re_window;
 VkInstance Re_instance;
-struct RenderContext Re_context;
+TLS struct RenderContext Re_context;
+mutex Re_submitMutex;
 
 static bool _Init(void *window);
 static void _Term(void);
@@ -40,6 +41,7 @@ static struct RenderEngine _re =
 	Re_DestroyModel,
 
 	Re_CreateTexture,
+	Re_UploadTexture,
 	Re_DestroyTexture,
 
 	Re_CreateMaterial,
@@ -142,25 +144,26 @@ _Term(void)
 void
 Re_InitThread(void)
 {
-	struct RenderContext *ctx = &Re_context;
-
 	VkCommandPoolCreateInfo poolInfo{ VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO };
 	poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
 	poolInfo.queueFamilyIndex = Re_graphicsQueueFamily;
+	assert(vkCreateCommandPool(Re_device, &poolInfo, nullptr, &Re_context.commandPool) == VK_SUCCESS);
 	
-	vkCreateCommandPool(Re_device, &poolInfo, nullptr, &ctx->commandPool);
-	
+	poolInfo.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT;
+	assert(vkCreateCommandPool(Re_device, &poolInfo, nullptr, &Re_context.oneShotCommandPool) == VK_SUCCESS);
+
 	VkCommandBufferAllocateInfo allocateInfo{ VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO };
-	allocateInfo.commandPool = ctx->commandPool;
+	allocateInfo.commandPool = Re_context.commandPool;
 	allocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
 	allocateInfo.commandBufferCount = RE_NUM_FRAMES;
-	vkAllocateCommandBuffers(Re_device, &allocateInfo, ctx->commandBuffers);
+	assert(vkAllocateCommandBuffers(Re_device, &allocateInfo, Re_context.commandBuffers) == VK_SUCCESS);
 }
 
 void
 Re_TermThread(void)
 {
 	vkFreeCommandBuffers(Re_device, Re_context.commandPool, RE_NUM_FRAMES, Re_context.commandBuffers);
+	vkDestroyCommandPool(Re_device, Re_context.oneShotCommandPool, nullptr);
 	vkDestroyCommandPool(Re_device, Re_context.commandPool, nullptr);
 }
 
